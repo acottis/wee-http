@@ -1,0 +1,135 @@
+mod http;
+pub use http::{Method, Request, Response};
+
+pub type Handler = fn(Request) -> Response;
+
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{BufReader, Read, Write},
+    net::{TcpListener, TcpStream, ToSocketAddrs},
+    path::Path,
+    sync::Arc,
+    thread,
+    time::Duration,
+};
+
+use rustls::{ServerConfig, ServerConnection};
+
+pub struct Server {
+    listener: TcpListener,
+    tls_config: Option<ServerConfig>,
+    paths: HashMap<String, Handler>,
+}
+
+impl Server {
+    pub fn bind(addr: impl ToSocketAddrs) -> Self {
+        Self {
+            listener: TcpListener::bind(addr).unwrap(),
+            tls_config: None,
+            paths: HashMap::new(),
+        }
+    }
+
+    pub fn path(mut self, path: impl ToString, handler: Handler) -> Self {
+        self.paths.insert(path.to_string(), handler);
+        self
+    }
+
+    pub fn tls(mut self, private_key: impl AsRef<Path>, certs: impl AsRef<Path>) -> Self {
+        let certs = rustls_pemfile::certs(&mut BufReader::new(&mut File::open(certs).unwrap()))
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+
+        let private_key =
+            rustls_pemfile::private_key(&mut BufReader::new(&mut File::open(private_key).unwrap()))
+                .unwrap()
+                .unwrap();
+
+        self.tls_config = Some(
+            ServerConfig::builder()
+                .with_no_client_auth()
+                .with_single_cert(certs, private_key)
+                .unwrap(),
+        );
+        self
+    }
+
+    pub fn listen(self) {
+        let paths = Arc::new(self.paths);
+        match self.tls_config {
+            Some(tls_config) => {
+                let tls_config = Arc::new(tls_config);
+                for stream in self.listener.incoming() {
+                    match stream {
+                        Ok(stream) => {
+                            let tls_config_clone = tls_config.clone();
+                            thread::spawn(move || handle_tls(stream, tls_config_clone));
+                        }
+                        Err(err) => println!("{err:?}"),
+                    };
+                }
+            }
+            None => {
+                for stream in self.listener.incoming() {
+                    let paths_clone = paths.clone();
+                    match stream {
+                        Ok(stream) => {
+                            thread::spawn(move || handle(stream, paths_clone));
+                        }
+                        Err(err) => println!("{err:?}"),
+                    };
+                }
+            }
+        }
+    }
+}
+
+fn set_stream_timeouts(stream: &TcpStream, duration: Duration) {
+    stream.set_read_timeout(Some(duration)).unwrap();
+    stream.set_write_timeout(Some(duration)).unwrap();
+}
+
+fn handle(mut stream: TcpStream, paths: Arc<HashMap<String, Handler>>) {
+    set_stream_timeouts(&stream, Duration::from_millis(1000));
+    let mut recv_buf = [0u8; 2048];
+    let len = stream.read(&mut recv_buf).unwrap();
+    let request = Request::from_bytes(&recv_buf[..len]);
+
+    let response: Option<Response> = match paths.get(request.path()) {
+        Some(handler) => Some(handler(request)),
+        _ => {
+            println!("Path: {} does not have a handler", request.path());
+            None
+        }
+    };
+
+    if let Some(mut response) = response {
+        let response = response.serialise();
+        println!("RESPONSE: {response}");
+        stream.write(response.as_bytes()).unwrap();
+    }
+}
+
+fn handle_tls(mut stream: TcpStream, tls_config: Arc<ServerConfig>) {
+    //    println!("{stream:?}");
+    //    set_stream_timeouts(&stream, Duration::from_millis(1000));
+    //
+    //    let mut conn = ServerConnection::new(tls_config).unwrap();
+    //    println!("{:?}", conn.is_handshaking());
+    //    conn.complete_io(&mut stream).unwrap();
+    //    println!("{:?}", conn.is_handshaking());
+    //    println!("w:{:?}, r:{:?}", conn.wants_write(), conn.wants_read());
+    //
+    //    conn.read_tls(&mut stream).unwrap();
+    //    conn.process_new_packets().unwrap();
+    //    let mut recv_buf = [0u8; 1024];
+    //    let len = conn.reader().read(&mut recv_buf).unwrap();
+    //    println!("{:?}", std::str::from_utf8(&recv_buf[..len]));
+    //
+    //    conn.writer()
+    //        .write_all("HTTP/1.1 200 OK\r\n\r\n".as_bytes())
+    //        .unwrap();
+    //    conn.write_tls(&mut stream).unwrap();
+    //    conn.process_new_packets().unwrap();
+}

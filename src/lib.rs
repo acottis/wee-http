@@ -34,8 +34,9 @@ impl Server {
         }
     }
 
-    pub fn path(mut self, path: impl ToString, handler: Handler) -> Self {
-        self.paths.insert(path.to_string(), handler);
+    pub fn path(mut self, path: &str, handler: Handler) -> Self {
+        self.paths
+            .insert(path.trim_end_matches('/').into(), handler);
         self
     }
 

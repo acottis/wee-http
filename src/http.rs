@@ -141,7 +141,7 @@ impl Request {
 
         let mut first_line = raw_headers.next().unwrap().split(' ');
         let method = first_line.next().unwrap().try_into().unwrap();
-        let path = first_line.next().unwrap().to_string();
+        let path = first_line.next().unwrap().trim_end_matches('/').to_string();
         let protocol = first_line.next().unwrap().try_into().unwrap();
 
         let mut headers = HashMap::new();

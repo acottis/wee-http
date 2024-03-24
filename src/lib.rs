@@ -115,18 +115,19 @@ fn handle(mut stream: TcpStream, paths: Arc<HashMap<String, Handler>>) {
     let len = stream.read(&mut recv_buf).unwrap();
     let request = Request::from_bytes(&recv_buf[..len]);
 
-    let response: Option<Response> = match paths.get(request.path()) {
-        Some(handler) => Some(handler(request)),
-        _ => {
-            println!("Path: {} does not have a handler", request.path());
-            None
-        }
+    let mut response: Response = match paths.get(request.path()) {
+        Some(handler) => handler(request),
+        None => not_found(),
     };
 
-    if let Some(mut response) = response {
-        let response = response.serialise();
-        stream.write(response.as_bytes()).unwrap();
-    }
+    stream.write(response.serialise().as_bytes()).unwrap();
+}
+
+fn not_found() -> Response {
+    let mut res = Response::new();
+    res.set_status_code(http::StatusCode::NotFound);
+    res.set_body("404 Not Found\nOops! Looks like Nessie took our page for a swim in the Loch");
+    res
 }
 
 #[cfg(feature = "tls")]

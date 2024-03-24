@@ -10,6 +10,7 @@ pub enum Error {
 pub enum StatusCode {
     Ok = 200,
     NoContent = 204,
+    NotFound = 404,
 }
 
 impl std::fmt::Display for StatusCode {
@@ -17,6 +18,7 @@ impl std::fmt::Display for StatusCode {
         match self {
             Self::Ok => write!(f, "200 Okay"),
             Self::NoContent => write!(f, "204 No Content"),
+            Self::NotFound => write!(f, "404 Not Found"),
         }
     }
 }
@@ -85,6 +87,10 @@ impl Response {
             headers: HashMap::new(),
             body: None,
         }
+    }
+
+    pub fn set_status_code(&mut self, status_code: StatusCode) {
+        self.status_code = status_code
     }
 
     pub fn add_header(&mut self, key: impl ToString, value: impl ToString) {

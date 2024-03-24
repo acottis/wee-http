@@ -128,17 +128,27 @@ pub struct Request {
     path: String,
     headers: HashMap<String, String>,
     body: String,
+    query: String,
 }
 
 impl Request {
+    pub fn protocol(&self) -> &Protocol {
+        &self.protocol
+    }
     pub fn method(&self) -> &Method {
         &self.method
     }
     pub fn path(&self) -> &str {
         &self.path
     }
+    pub fn query(&self) -> &str {
+        &self.query
+    }
     pub fn body(&self) -> &str {
         &self.body
+    }
+    pub fn headers(&self) -> &HashMap<String, String> {
+        &self.headers
     }
     pub fn from_bytes(buf: &[u8]) -> Self {
         let raw_str = std::str::from_utf8(buf).unwrap();
@@ -147,7 +157,10 @@ impl Request {
 
         let mut first_line = raw_headers.next().unwrap().split(' ');
         let method = first_line.next().unwrap().try_into().unwrap();
-        let path = first_line.next().unwrap().trim_end_matches('/').to_string();
+        let mut uri = first_line.next().unwrap().splitn(2, '?');
+        let path = uri.next().unwrap().trim_end_matches('/').to_string();
+        let query = uri.next().unwrap_or("").to_string();
+
         let protocol = first_line.next().unwrap().try_into().unwrap();
 
         let mut headers = HashMap::new();
@@ -164,6 +177,7 @@ impl Request {
             protocol,
             method,
             path,
+            query,
         }
     }
 }

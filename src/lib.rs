@@ -111,6 +111,7 @@ fn set_stream_timeouts(stream: &TcpStream, duration: Duration) {
 fn handle(mut stream: TcpStream, paths: Arc<HashMap<String, Handler>>) {
     println!("{stream:?}");
     set_stream_timeouts(&stream, Duration::from_millis(1000));
+
     let mut recv_buf = [0u8; 2048];
     let len = stream.read(&mut recv_buf).unwrap();
     let request = Request::from_bytes(&recv_buf[..len]);

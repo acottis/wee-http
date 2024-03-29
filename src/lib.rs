@@ -1,5 +1,10 @@
 mod http;
 pub use http::{Method, Request, Response};
+use opentelemetry::{
+    global,
+    trace::{Span, SpanKind, TraceContextExt, Tracer, TracerProvider},
+    Context, KeyValue,
+};
 
 pub type Handler = fn(Request) -> Response;
 
@@ -19,44 +24,24 @@ use std::{fs::File, io::BufReader, path::Path};
 
 pub struct Server {
     listener: TcpListener,
+    paths: HashMap<String, Handler>,
     #[cfg(feature = "tls")]
     tls_config: Option<ServerConfig>,
-    paths: HashMap<String, Handler>,
 }
 
 impl Server {
     pub fn bind(addr: impl ToSocketAddrs) -> Self {
         Self {
             listener: TcpListener::bind(addr).unwrap(),
+            paths: HashMap::new(),
             #[cfg(feature = "tls")]
             tls_config: None,
-            paths: HashMap::new(),
         }
     }
 
     pub fn path(mut self, path: &str, handler: Handler) -> Self {
         self.paths
             .insert(path.trim_end_matches('/').into(), handler);
-        self
-    }
-
-    #[cfg(feature = "tls")]
-    pub fn tls(mut self, private_key: impl AsRef<Path>, certs: impl AsRef<Path>) -> Self {
-        let certs = rustls_pemfile::certs(&mut BufReader::new(&mut File::open(certs).unwrap()))
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-
-        let private_key =
-            rustls_pemfile::private_key(&mut BufReader::new(&mut File::open(private_key).unwrap()))
-                .unwrap()
-                .unwrap();
-
-        self.tls_config = Some(
-            ServerConfig::builder()
-                .with_no_client_auth()
-                .with_single_cert(certs, private_key)
-                .unwrap(),
-        );
         self
     }
 
@@ -100,6 +85,27 @@ impl Server {
                 }
             }
         }
+
+        #[cfg(feature = "tls")]
+        pub fn tls(mut self, private_key: impl AsRef<Path>, certs: impl AsRef<Path>) -> Self {
+            let certs = rustls_pemfile::certs(&mut BufReader::new(&mut File::open(certs).unwrap()))
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+
+            let private_key = rustls_pemfile::private_key(&mut BufReader::new(
+                &mut File::open(private_key).unwrap(),
+            ))
+            .unwrap()
+            .unwrap();
+
+            self.tls_config = Some(
+                ServerConfig::builder()
+                    .with_no_client_auth()
+                    .with_single_cert(certs, private_key)
+                    .unwrap(),
+            );
+            self
+        }
     }
 }
 
@@ -109,19 +115,43 @@ fn set_stream_timeouts(stream: &TcpStream, duration: Duration) {
 }
 
 fn handle(mut stream: TcpStream, paths: Arc<HashMap<String, Handler>>) {
-    println!("{stream:?}");
+    let tracer = global::tracer_provider().versioned_tracer(
+        "wee-server",
+        Some(env!("CARGO_PKG_VERSION")),
+        Some("https://opentelemetry.io/schema/1.0.0"),
+        None,
+    );
+    let peer = stream.peer_addr().unwrap();
+    let local = stream.local_addr().unwrap();
+    let mut span = tracer
+        .span_builder("tcp-recv")
+        .with_kind(SpanKind::Server)
+        .with_attributes([
+            KeyValue::new("ip.src", peer.ip().to_string()),
+            KeyValue::new("ip.dst", local.ip().to_string()),
+        ])
+        .start(&tracer);
     set_stream_timeouts(&stream, Duration::from_millis(1000));
 
     let mut recv_buf = [0u8; 2048];
     let len = stream.read(&mut recv_buf).unwrap();
     let request = Request::from_bytes(&recv_buf[..len]);
+    let path = request.path().to_owned();
+    span.set_attribute(KeyValue::new("ip.tcp.http.path", path));
+    span.set_attribute(KeyValue::new(
+        "ip.tcp.http.method",
+        Into::<&str>::into(request.method()),
+    ));
 
+    let span = tracer.start_with_context("http-handler", &Context::current_with_span(span));
     let mut response: Response = match paths.get(request.path()) {
         Some(handler) => handler(request),
         None => not_found(),
     };
 
+    let mut span = tracer.start_with_context("tcp-send", &Context::current_with_span(span));
     stream.write(response.serialise().as_bytes()).unwrap();
+    span.end();
 }
 
 fn not_found() -> Response {

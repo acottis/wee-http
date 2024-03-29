@@ -59,13 +59,22 @@ pub enum Method {
     Get,
 }
 
+impl From<&Method> for &str {
+    fn from(value: &Method) -> Self {
+        match value {
+            Method::Get => "GET",
+            Method::Post => "POST",
+        }
+    }
+}
+
 impl TryFrom<&str> for Method {
     type Error = Error;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value.to_lowercase().as_str() {
-            "post" => Ok(Self::Post),
-            "get" => Ok(Self::Get),
+        match value.to_uppercase().as_str() {
+            "POST" => Ok(Self::Post),
+            "GET" => Ok(Self::Get),
             _ => Err(Error::InvalidMethod),
         }
     }

@@ -55,8 +55,9 @@ impl TryFrom<&str> for Protocol {
 
 #[derive(Debug)]
 pub enum Method {
-    Post,
+    Connect,
     Get,
+    Post,
 }
 
 impl TryFrom<&str> for Method {
@@ -64,8 +65,9 @@ impl TryFrom<&str> for Method {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value.to_lowercase().as_str() {
-            "post" => Ok(Self::Post),
+            "connect" => Ok(Self::Connect),
             "get" => Ok(Self::Get),
+            "post" => Ok(Self::Post),
             _ => Err(Error::InvalidMethod),
         }
     }

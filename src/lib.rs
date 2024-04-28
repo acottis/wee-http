@@ -12,6 +12,9 @@ use std::{
     time::Duration,
 };
 
+#[cfg(feature = "log")]
+use log::info;
+
 #[cfg(feature = "tls")]
 use rustls::{ServerConfig, ServerConnection};
 #[cfg(feature = "tls")]
@@ -115,6 +118,7 @@ fn handle(mut stream: TcpStream, paths: Arc<HashMap<String, Handler>>) {
     let mut recv_buf = [0u8; 2048];
     let len = stream.read(&mut recv_buf).unwrap();
     let request = Request::from_bytes(&recv_buf[..len]);
+    println!("{request:?}");
 
     let mut response: Response = match paths.get(request.path()) {
         Some(handler) => handler(request),
@@ -146,7 +150,6 @@ fn handle_tls(mut stream: TcpStream, tls_config: Arc<ServerConfig>) {
     conn.process_new_packets().unwrap();
     let mut recv_buf = [0u8; 1024];
     let len = conn.reader().read(&mut recv_buf).unwrap();
-    println!("{:?}", std::str::from_utf8(&recv_buf[..len]));
 
     conn.writer()
         .write_all("HTTP/1.1 200 OK\r\n\r\n".as_bytes())

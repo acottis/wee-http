@@ -141,15 +141,12 @@ fn handle_tls(mut stream: TcpStream, tls_config: Arc<ServerConfig>) {
     set_stream_timeouts(&stream, Duration::from_millis(1000));
 
     let mut conn = ServerConnection::new(tls_config).unwrap();
-    println!("{:?}", conn.is_handshaking());
     conn.complete_io(&mut stream).unwrap();
-    println!("{:?}", conn.is_handshaking());
-    println!("w:{:?}, r:{:?}", conn.wants_write(), conn.wants_read());
 
     conn.read_tls(&mut stream).unwrap();
     conn.process_new_packets().unwrap();
     let mut recv_buf = [0u8; 1024];
-    let len = conn.reader().read(&mut recv_buf).unwrap();
+    let _ = conn.reader().read(&mut recv_buf).unwrap();
 
     conn.writer()
         .write_all("HTTP/1.1 200 OK\r\n\r\n".as_bytes())

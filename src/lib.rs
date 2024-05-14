@@ -44,15 +44,22 @@ impl Server {
     }
 
     #[cfg(feature = "tls")]
-    pub fn tls(mut self, private_key: impl AsRef<Path>, certs: impl AsRef<Path>) -> Self {
-        let certs = rustls_pemfile::certs(&mut BufReader::new(&mut File::open(certs).unwrap()))
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
+    pub fn tls(
+        mut self,
+        private_key: impl AsRef<Path>,
+        certs: impl AsRef<Path>,
+    ) -> Self {
+        let certs = rustls_pemfile::certs(&mut BufReader::new(
+            &mut File::open(certs).unwrap(),
+        ))
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
 
-        let private_key =
-            rustls_pemfile::private_key(&mut BufReader::new(&mut File::open(private_key).unwrap()))
-                .unwrap()
-                .unwrap();
+        let private_key = rustls_pemfile::private_key(&mut BufReader::new(
+            &mut File::open(private_key).unwrap(),
+        ))
+        .unwrap()
+        .unwrap();
 
         self.tls_config = Some(
             ServerConfig::builder()
@@ -85,7 +92,9 @@ impl Server {
                     match stream {
                         Ok(stream) => {
                             let tls_config_clone = tls_config.clone();
-                            thread::spawn(move || handle_tls(stream, tls_config_clone));
+                            thread::spawn(move || {
+                                handle_tls(stream, tls_config_clone)
+                            });
                         }
                         Err(err) => println!("{err:?}"),
                     };
@@ -129,10 +138,9 @@ fn handle(mut stream: TcpStream, paths: Arc<HashMap<String, Handler>>) {
 }
 
 fn not_found() -> Response {
-    let mut res = Response::new();
-    res.set_status_code(http::StatusCode::NotFound);
-    res.set_body("404 Not Found\nOops! Looks like Nessie took our page for a swim in the Loch");
-    res
+    Response::new()
+        .set_status_code(http::StatusCode::NotFound)
+        .set_body("404 Not Found\nOops! Looks like Nessie took our page for a swim in the Loch")
 }
 
 #[cfg(feature = "tls")]

@@ -91,16 +91,23 @@ impl Response {
         }
     }
 
-    pub fn set_status_code(&mut self, status_code: StatusCode) {
-        self.status_code = status_code
+    pub fn set_status_code(mut self, status_code: StatusCode) -> Self {
+        self.status_code = status_code;
+        self
     }
 
-    pub fn add_header(&mut self, key: impl ToString, value: impl ToString) {
+    pub fn add_header(
+        mut self,
+        key: impl ToString,
+        value: impl ToString,
+    ) -> Self {
         self.headers.insert(key.to_string(), value.to_string());
+        self
     }
 
-    pub fn set_body(&mut self, body: impl ToString) {
+    pub fn set_body(mut self, body: impl ToString) -> Self {
         self.body = Some(body.to_string());
+        self
     }
 
     pub fn serialise(&mut self) -> String {

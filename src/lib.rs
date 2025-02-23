@@ -63,13 +63,11 @@ impl ServerBuilder {
         paths: Arc<HashMap<String, Handler>>,
         default: Handler,
     ) {
-        println!("{stream:?}");
-        set_stream_timeouts(&stream, Duration::from_millis(1000));
+        set_stream_timeouts(&stream, Duration::from_millis(4000));
 
         let mut recv_buf = [0u8; u16::MAX as usize];
         let len = stream.read(&mut recv_buf).unwrap();
         let request = Request::from_bytes(&recv_buf[..len]);
-        println!("{request:?}");
 
         let mut response: Response = match paths.get(request.path()) {
             Some(handler) => handler(request),

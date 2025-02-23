@@ -137,7 +137,7 @@ pub struct Request {
     path: String,
     headers: HashMap<String, String>,
     body: String,
-    query: String,
+    query: Option<HashMap<String, String>>,
 }
 
 impl Request {
@@ -150,7 +150,7 @@ impl Request {
     pub fn path(&self) -> &str {
         &self.path
     }
-    pub fn query(&self) -> &str {
+    pub fn query(&self) -> &Option<HashMap<String, String>> {
         &self.query
     }
     pub fn body(&self) -> &str {
@@ -161,6 +161,7 @@ impl Request {
     }
     pub fn from_bytes(buf: &[u8]) -> Self {
         let raw_str = std::str::from_utf8(buf).unwrap();
+        println!("{raw_str}");
         let (raw_headers, body) = raw_str.split_once("\r\n\r\n").unwrap();
         let mut raw_headers = raw_headers.lines();
 
@@ -168,7 +169,18 @@ impl Request {
         let method = first_line.next().unwrap().try_into().unwrap();
         let mut uri = first_line.next().unwrap().splitn(2, '?');
         let path = uri.next().unwrap().trim_end_matches('/').to_string();
-        let query = uri.next().unwrap_or("").to_string();
+        let query = match uri.next() {
+            Some(query) => {
+                let mut queries = HashMap::new();
+                let query_parts = query.split("&");
+                for part in query_parts {
+                    let (key, value) = part.split_once("=").unwrap();
+                    queries.insert(key.into(), value.into());
+                }
+                Some(queries)
+            }
+            None => None,
+        };
 
         let protocol = first_line.next().unwrap().try_into().unwrap();
 

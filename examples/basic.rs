@@ -1,4 +1,4 @@
-use wee_server::{Request, Response, Server};
+use wee_http::{Request, Response, Server};
 
 fn main() {
     Server::bind("0.0.0.0:8080").path("/", root).listen()

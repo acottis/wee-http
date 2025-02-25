@@ -153,15 +153,23 @@ impl Request {
     pub fn query(&self) -> &Option<HashMap<String, String>> {
         &self.query
     }
-    pub fn body(&self) -> &str {
+    pub fn body(&self) -> &String {
         &self.body
+    }
+    pub fn body_mut(&mut self) -> &mut String {
+        &mut self.body
     }
     pub fn headers(&self) -> &HashMap<String, String> {
         &self.headers
     }
+    pub fn content_len(&self) -> usize {
+        self.headers
+            .get("content-length")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0)
+    }
     pub fn from_bytes(buf: &[u8]) -> Self {
         let raw_str = std::str::from_utf8(buf).unwrap();
-        println!("{raw_str}");
         let (raw_headers, body) = raw_str.split_once("\r\n\r\n").unwrap();
         let mut raw_headers = raw_headers.lines();
 
@@ -187,7 +195,7 @@ impl Request {
         let mut headers = HashMap::new();
         raw_headers.for_each(|header| {
             let (key, value) = header.split_once(':').unwrap();
-            headers.insert(key.trim().into(), value.trim().into());
+            headers.insert(key.trim().to_lowercase(), value.trim().into());
         });
 
         let body = body.to_string();

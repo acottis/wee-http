@@ -7,6 +7,7 @@ use std::{
     collections::HashMap,
     io::{Read, Write},
     net::{TcpListener, TcpStream, ToSocketAddrs},
+    str,
     sync::Arc,
     thread,
     time::Duration,
@@ -66,8 +67,31 @@ impl ServerBuilder {
         set_stream_timeouts(&stream, Duration::from_millis(4000));
 
         let mut recv_buf = [0u8; u16::MAX as usize];
-        let len = stream.read(&mut recv_buf).unwrap();
-        let request = Request::from_bytes(&recv_buf[..len]);
+
+        let len = match stream.read(&mut recv_buf) {
+            Ok(len) => len,
+            Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => return,
+            Err(e) => panic!("{}", e),
+        };
+
+        let mut request = Request::from_bytes(&recv_buf[..len]);
+
+        let content_len = request.content_len();
+        loop {
+            if content_len <= request.body().len() {
+                break;
+            }
+
+            let next_len = match stream.read(&mut recv_buf[len..]) {
+                Ok(len) => len,
+                Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                    return
+                }
+                Err(e) => panic!("{}", e),
+            };
+            let body = str::from_utf8(&recv_buf[len..len + next_len]).unwrap();
+            request.body_mut().push_str(body);
+        }
 
         let mut response: Response = match paths.get(request.path()) {
             Some(handler) => handler(request),

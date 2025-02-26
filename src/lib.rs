@@ -68,7 +68,7 @@ impl ServerBuilder {
 
         let mut recv_buf = [0u8; u16::MAX as usize];
 
-        let len = match stream.read(&mut recv_buf) {
+        let mut len = match stream.read(&mut recv_buf) {
             Ok(len) => len,
             Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => return,
             Err(e) => panic!("{}", e),
@@ -91,6 +91,7 @@ impl ServerBuilder {
             };
             let body = str::from_utf8(&recv_buf[len..len + next_len]).unwrap();
             request.body_mut().push_str(body);
+            len += next_len;
         }
 
         let mut response: Response = match paths.get(request.path()) {

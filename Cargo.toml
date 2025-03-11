@@ -7,8 +7,10 @@ edition = "2021"
 
 [dependencies]
 log = {version = "0.4.21"}
-rustls = {version = "0.23.2", optional = true}
-rustls-pemfile = {version = "2.1.1", optional = true}
+rustls = { version = "0.23.2", optional = true, features = ["aws_lc_rs"], default-features = false }
+rustls-pemfile = { version = "2.1.1", optional = true, default-features = false }
 
 [features]
 tls = ["rustls", "rustls-pemfile"]
+rustls = ["dep:rustls"]
+rustls-pemfile = ["dep:rustls-pemfile"]
